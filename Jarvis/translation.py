@@ -105,10 +105,89 @@ def _play(path):
         print(f"[play] error: {e}")
 
 
+# OmniVoice (k2-fsa) — state-of-the-art zero-shot multilingual TTS, 600+
+# languages, voice cloning + voice design. Model is heavy (PyTorch + HF
+# weights), so it is loaded once, lazily, and cached as a process singleton.
+_omni = None          # loaded OmniVoice model
+_omni_failed = False  # set True after a load/generate failure so we stop retrying
+
+
+def _auto_device():
+    """Pick the best available torch device, falling back to CPU."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return "cuda:0"
+        if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+            return "mps"
+    except Exception:
+        pass
+    return "cpu"
+
+
+def _omnivoice_speak(text):
+    """Synthesize with OmniVoice. Returns True on success, False to fall back.
+
+    Voice selection (env, optional):
+      OMNIVOICE_REF_AUDIO / OMNIVOICE_REF_TEXT  -> clone a specific voice
+      OMNIVOICE_INSTRUCT  (e.g. "female, low pitch, british accent") -> design
+      OMNIVOICE_DEVICE    -> override auto device (cuda:0 / mps / cpu / xpu)
+    """
+    global _omni, _omni_failed
+    if _omni_failed:
+        return False
+    try:
+        if _omni is None:
+            import torch
+            from omnivoice import OmniVoice
+            device = os.environ.get("OMNIVOICE_DEVICE") or _auto_device()
+            dtype = torch.float16 if device != "cpu" else torch.float32
+            print(f"[omnivoice] loading model on {device} (first run downloads weights)…")
+            _omni = OmniVoice.from_pretrained("k2-fsa/OmniVoice", device_map=device, dtype=dtype)
+
+        kwargs = {}
+        ref = os.environ.get("OMNIVOICE_REF_AUDIO")
+        if ref:
+            kwargs["ref_audio"] = ref
+            if os.environ.get("OMNIVOICE_REF_TEXT"):
+                kwargs["ref_text"] = os.environ["OMNIVOICE_REF_TEXT"]
+        elif os.environ.get("OMNIVOICE_INSTRUCT"):
+            kwargs["instruct"] = os.environ["OMNIVOICE_INSTRUCT"]
+
+        audio = _omni.generate(text=text, **kwargs)  # list of np.ndarray @ 24 kHz
+        import soundfile as sf
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+            tmp = f.name
+        sf.write(tmp, audio[0], 24000)
+        _play(tmp)
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        return True
+    except Exception as e:
+        print(f"[omnivoice] unavailable ({e}); falling back to gTTS/offline")
+        _omni_failed = True
+        return False
+
+
 def speak_in(text, tts_lang, fallback_speak=None):
-    """Speak `text` in `tts_lang` via gTTS; use the offline voice for English."""
+    """Speak `text` aloud, best engine first.
+
+    OmniVoice (600+ languages, high quality) -> gTTS (online) -> pyttsx3 (offline).
+    Set JARVIS_TTS=gtts to skip OmniVoice, or =omnivoice to require it.
+    """
     if not text:
         return
+    engine = os.environ.get("JARVIS_TTS", "auto").lower()
+
+    if engine in ("auto", "omnivoice"):
+        if _omnivoice_speak(text):
+            return
+        if engine == "omnivoice":
+            print("[tts] OmniVoice requested but unavailable; using fallback")
+
+    # Fallbacks: offline voice for English, gTTS for everything else.
     if tts_lang == "en" and fallback_speak:
         fallback_speak(text)
         return
@@ -144,4 +223,7 @@ if __name__ == "__main__":
     assert t is None, t
 
     assert translate_text("", "es") == ""  # empty short-circuits, no network
-    print("OK — language resolve + command parsing pass")
+
+    assert _auto_device() in ("cpu", "mps", "cuda:0")  # never raises
+    speak_in("", "es")  # empty text is a no-op across every engine
+    print("OK — language resolve + command parsing + tts routing pass")

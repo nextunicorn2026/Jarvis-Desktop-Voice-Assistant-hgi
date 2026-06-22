@@ -4,4 +4,13 @@ PyAutoGUI~=0.9.54
 SpeechRecognition~=3.10.4
 pyjokes==0.6.0
 deep-translator~=1.11.4
+
+# --- Text-to-speech ---
+# Primary engine: OmniVoice (k2-fsa) — zero-shot multilingual TTS, 600+ languages.
+# Install separately, after the right PyTorch for your hardware (see OmniVoice
+# README), because torch wheels are platform/CUDA-specific:
+#   pip install torch torchaudio        # or the CUDA/MPS build for your machine
+#   pip install git+https://github.com/k2-fsa/OmniVoice.git
+soundfile~=0.12.1
+# Fallback engine when OmniVoice is unavailable (online, ~50 languages):
 gTTS~=2.5.3
