@@ -7,6 +7,7 @@ import os
 import random
 import pyautogui
 import pyjokes
+from translation import parse_languages, resolve_language, translate_text, speak_in
 
 engine = pyttsx3.init()
 voices = engine.getProperty('voices')
@@ -67,8 +68,8 @@ def screenshot() -> None:
     speak(f"Screenshot saved as {img_path}.")
     print(f"Screenshot saved as {img_path}.")
 
-def takecommand() -> str:
-    """Takes microphone input from the user and returns it as text."""
+def takecommand(language="en-in") -> str:
+    """Takes microphone input and returns it as text, recognised in `language`."""
     r = sr.Recognizer()
     with sr.Microphone() as source:
         print("Listening...")
@@ -82,7 +83,7 @@ def takecommand() -> str:
 
     try:
         print("Recognizing...")
-        query = r.recognize_google(audio, language="en-in")
+        query = r.recognize_google(audio, language=language)
         print(query)
         return query.lower()
     except sr.UnknownValueError:
@@ -133,6 +134,39 @@ def load_name() -> str:
         return "Jarvis"  # Default name
 
 
+def live_translate(source, target) -> None:
+    """Realtime interpreter: listen in `source`, speak the translation in `target`."""
+    speak(f"Live translation on. Speak in {source['name']}, I'll reply in {target['name']}. "
+          f"Say stop translating to end.")
+    print(f"[Interpreter] {source['name']} -> {target['name']}")
+    while True:
+        text = takecommand(language=source["stt"])
+        if not text:
+            continue
+        if any(p in text for p in ("stop translating", "stop translation", "exit translation")):
+            speak("Translation mode off.")
+            return
+        translated = translate_text(text, target["translate"], source=source["translate"])
+        print(f"[{source['name']}] {text}\n[{target['name']}] {translated}")
+        speak_in(translated, target["tts"], fallback_speak=speak)
+
+
+def handle_translate(query) -> None:
+    """Parse a translate command and start the live interpreter."""
+    source, target = parse_languages(query)
+    if not target:
+        speak("Which language should I translate to?")
+        target = resolve_language(takecommand())
+    if not source:
+        speak("Which language will you speak? Defaulting to English if you stay silent.")
+        spoken = takecommand()
+        source = resolve_language(spoken) or resolve_language("english")
+    if target:
+        live_translate(source, target)
+    else:
+        speak("Sorry, I don't support that language yet.")
+
+
 def search_wikipedia(query):
     """Searches Wikipedia and returns a summary."""
     try:
@@ -154,7 +188,10 @@ if __name__ == "__main__":
         if not query:
             continue
 
-        if "time" in query:
+        if "translate" in query or "interpreter" in query:
+            handle_translate(query)
+
+        elif "time" in query:
             time()
             
         elif "date" in query:
