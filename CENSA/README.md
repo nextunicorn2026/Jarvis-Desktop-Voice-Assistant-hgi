@@ -78,7 +78,7 @@
 
 <img src="https://github.com/kishanrajput23/Jarvis-Desktop-Voice-Assistant/blob/main/Images/Picture11.png" alt="">
 
-# 📌WHY TO USE JARVIS?
+# 📌WHY TO USE CENSA?
 
 1. It fulfils the own personnel desktop voice assistant.
 
@@ -102,6 +102,6 @@
 
 - Through this voice assistant, we have automated various services using a single line command. It eases most of the tasks of the user like searching the web, retrieving weather forecast details, vocabulary help and medical related queries. 
 
-- We aim to make this project a complete server assistant and make it smart enough to act as a replacement for a general server administration. The future plans include integrating Jarvis with mobile using React Native to provide a synchronized experience between the two connected devices. 
+- We aim to make this project a complete server assistant and make it smart enough to act as a replacement for a general server administration. The future plans include integrating CENSA with mobile using React Native to provide a synchronized experience between the two connected devices. 
 
-- Further, in the long run, Jarvis is planned to feature auto deployment supporting elastic beanstalk, backup files, and all operations which a general Server Administrator does. The functionality would be seamless enough to replace the Server Administrator with Jarvis. 
+- Further, in the long run, CENSA is planned to feature auto deployment supporting elastic beanstalk, backup files, and all operations which a general Server Administrator does. The functionality would be seamless enough to replace the Server Administrator with CENSA. 

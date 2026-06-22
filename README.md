@@ -1,10 +1,10 @@
-# Jarvis Desktop Voice Assistant🔥
+# CENSA Desktop Voice Assistant🔥
 
 <img src="https://giffiles.alphacoders.com/212/212508.gif" alt="">
 
 **Have you ever wondered how cool it would be to have your own assistant? Imagine how easier it would be doing Wikipedia searches without opening web browsers, and performing many other daily tasks like playing music with the help of a single voice command, opening different browsers in just a voice command.**
 
-**This project is simple desktop voice assistant built with python named as “Jarvis Desktop Voice Assistant”. This project is fully completed and error free. It was compiled in VS Code Editor.**
+**This project is a desktop voice assistant built with Python named “CENSA Desktop Voice Assistant”. CENSA does realtime translation (live interpreter mode) and speaks with OmniVoice high-quality TTS (600+ languages, optional founder voice cloning).**
 
 **🔸 Let's be honest, it's not as intelligent as in the movie, but it can do a lot of cool things and automate your daily tasks you do on your personal computers/laptops.**
 
@@ -69,7 +69,7 @@ Python 3.6+
 6. **Run the Assistant**
   - Run the main script:
     ```bash
-    python jarvis.py
+    python CENSA/censa.py
     ```
   - Now Enjoy with your own assistant !!!!
 

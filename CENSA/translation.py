@@ -1,6 +1,6 @@
-"""Realtime translation for the Jarvis voice assistant.
+"""Realtime translation for the CENSA voice assistant.
 
-Turns Jarvis into a live interpreter: you speak in one language, it speaks the
+Turns CENSA into a live interpreter: you speak in one language, it speaks the
 translation back in another. Text translation uses deep-translator (Google
 backend, no API key); multilingual speech uses gTTS. The offline pyttsx3 voice
 is kept as the English/fallback path.
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import sys
+import json
 import tempfile
 import subprocess
 
@@ -105,6 +106,33 @@ def _play(path):
         print(f"[play] error: {e}")
 
 
+# ── Founder voice profile ────────────────────────────────────────────────────
+# A saved reference clip + transcript so OmniVoice clones one specific voice.
+# Lives under ~/.censa (override with CENSA_HOME, used by tests).
+def profile_dir():
+    base = os.environ.get("CENSA_HOME") or os.path.join(os.path.expanduser("~"), ".censa")
+    os.makedirs(base, exist_ok=True)
+    return base
+
+
+def voice_profile_path():
+    return os.path.join(profile_dir(), "voice_profile.json")
+
+
+def save_voice_profile(ref_audio, ref_text=""):
+    with open(voice_profile_path(), "w") as f:
+        json.dump({"ref_audio": ref_audio, "ref_text": ref_text}, f, indent=2)
+    return voice_profile_path()
+
+
+def load_voice_profile():
+    try:
+        with open(voice_profile_path()) as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
 # OmniVoice (k2-fsa) — state-of-the-art zero-shot multilingual TTS, 600+
 # languages, voice cloning + voice design. Model is heavy (PyTorch + HF
 # weights), so it is loaded once, lazily, and cached as a process singleton.
@@ -147,12 +175,20 @@ def _omnivoice_speak(text):
 
         kwargs = {}
         ref = os.environ.get("OMNIVOICE_REF_AUDIO")
+        ref_text = os.environ.get("OMNIVOICE_REF_TEXT")
+        instruct = os.environ.get("OMNIVOICE_INSTRUCT")
+        # No explicit voice in env -> fall back to the saved founder profile.
+        if not ref and not instruct:
+            prof = load_voice_profile()
+            if prof and prof.get("ref_audio") and os.path.exists(prof["ref_audio"]):
+                ref = prof["ref_audio"]
+                ref_text = ref_text or prof.get("ref_text")
         if ref:
             kwargs["ref_audio"] = ref
-            if os.environ.get("OMNIVOICE_REF_TEXT"):
-                kwargs["ref_text"] = os.environ["OMNIVOICE_REF_TEXT"]
-        elif os.environ.get("OMNIVOICE_INSTRUCT"):
-            kwargs["instruct"] = os.environ["OMNIVOICE_INSTRUCT"]
+            if ref_text:
+                kwargs["ref_text"] = ref_text
+        elif instruct:
+            kwargs["instruct"] = instruct
 
         audio = _omni.generate(text=text, **kwargs)  # list of np.ndarray @ 24 kHz
         import soundfile as sf
@@ -175,11 +211,11 @@ def speak_in(text, tts_lang, fallback_speak=None):
     """Speak `text` aloud, best engine first.
 
     OmniVoice (600+ languages, high quality) -> gTTS (online) -> pyttsx3 (offline).
-    Set JARVIS_TTS=gtts to skip OmniVoice, or =omnivoice to require it.
+    Set CENSA_TTS=gtts to skip OmniVoice, or =omnivoice to require it.
     """
     if not text:
         return
-    engine = os.environ.get("JARVIS_TTS", "auto").lower()
+    engine = os.environ.get("CENSA_TTS", "auto").lower()
 
     if engine in ("auto", "omnivoice"):
         if _omnivoice_speak(text):
@@ -226,4 +262,10 @@ if __name__ == "__main__":
 
     assert _auto_device() in ("cpu", "mps", "cuda:0")  # never raises
     speak_in("", "es")  # empty text is a no-op across every engine
-    print("OK — language resolve + command parsing + tts routing pass")
+
+    os.environ["CENSA_HOME"] = tempfile.mkdtemp()  # isolate the profile test
+    assert load_voice_profile() is None
+    save_voice_profile("/tmp/founder_ref.wav", "this is my voice")
+    prof = load_voice_profile()
+    assert prof["ref_audio"] == "/tmp/founder_ref.wav" and prof["ref_text"] == "this is my voice"
+    print("OK — language resolve + command parsing + tts routing + voice profile pass")

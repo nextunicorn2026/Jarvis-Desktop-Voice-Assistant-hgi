@@ -7,7 +7,10 @@ import os
 import random
 import pyautogui
 import pyjokes
-from translation import parse_languages, resolve_language, translate_text, speak_in
+from translation import (
+    parse_languages, resolve_language, translate_text, speak_in,
+    save_voice_profile, voice_profile_path,
+)
 
 engine = pyttsx3.init()
 voices = engine.getProperty('voices')
@@ -131,7 +134,7 @@ def load_name() -> str:
         with open("assistant_name.txt", "r") as file:
             return file.read().strip()
     except FileNotFoundError:
-        return "Jarvis"  # Default name
+        return "CENSA"  # Default name
 
 
 def live_translate(source, target) -> None:
@@ -180,7 +183,70 @@ def search_wikipedia(query):
         speak("I couldn't find anything on Wikipedia.")
 
 
+def clone_founder_voice(audio_path=None, ref_text=None, seconds=6) -> None:
+    """Capture (or import) a reference clip so OmniVoice speaks in the founder's voice.
+
+    Saves a persistent voice profile under ~/.censa that CENSA's TTS loads
+    automatically on every future run. Pass an existing clip with --audio, and
+    its transcript with --text (otherwise it is auto-transcribed). A 3–10s clip
+    in a quiet room gives the best clone.
+    """
+    r = sr.Recognizer()
+    dest = os.path.join(os.path.dirname(voice_profile_path()), "founder_ref.wav")
+
+    if audio_path:
+        src_path = os.path.abspath(os.path.expanduser(audio_path))
+        if not os.path.exists(src_path):
+            print(f"Audio file not found: {src_path}")
+            return
+        dest = src_path  # reference the supplied file in place
+        if not ref_text:
+            try:
+                with sr.AudioFile(src_path) as src:
+                    ref_text = r.recognize_google(r.record(src))
+            except Exception:
+                ref_text = ""  # empty -> OmniVoice auto-transcribes via Whisper
+    else:
+        try:
+            with sr.Microphone() as source:
+                print(f"Recording {seconds}s reference clip — speak naturally now...")
+                r.adjust_for_ambient_noise(source, duration=0.5)
+                audio = r.record(source, duration=seconds)
+        except Exception as e:
+            print(f"Could not access microphone: {e}")
+            return
+        with open(dest, "wb") as f:
+            f.write(audio.get_wav_data())
+        if not ref_text:
+            try:
+                ref_text = r.recognize_google(audio)
+            except Exception:
+                ref_text = ""
+
+    save_voice_profile(dest, ref_text or "")
+    print(f"Founder voice profile saved -> {dest}")
+    if ref_text:
+        print(f"Reference transcript: {ref_text}")
+    print("CENSA will now speak in your cloned voice via OmniVoice (CENSA_TTS=auto).")
+    speak_in("Founder voice profile created. This is how I will sound from now on.",
+             "en", fallback_speak=speak)
+
+
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="CENSA desktop voice assistant")
+    parser.add_argument("--clone-founder-voice", action="store_true",
+                        help="Record/import a reference clip so CENSA speaks in your voice (OmniVoice).")
+    parser.add_argument("--audio", help="Existing reference clip (3–10s) to use instead of recording.")
+    parser.add_argument("--text", help="Transcript of the reference clip (optional; auto-transcribed if omitted).")
+    parser.add_argument("--seconds", type=int, default=6, help="Recording length when capturing from the mic.")
+    _args = parser.parse_args()
+
+    if _args.clone_founder_voice:
+        clone_founder_voice(audio_path=_args.audio, ref_text=_args.text, seconds=_args.seconds)
+        raise SystemExit(0)
+
     wishme()
 
     while True:
